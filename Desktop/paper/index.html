@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Content Opportunity Scoring — FlyRank ML Internship Research Paper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Token system ──────────────────────────────────────────────
+       Palette:
+         ink       #0F1117   near-black, primary text
+         slate     #3A3F4B   secondary text / labels
+         fog       #F0F1F4   page background
+         white     #FFFFFF   card surfaces
+         signal    #1D6FA4   primary accent (data/trust blue)
+         amber     #C97B2E   secondary accent (caution / highlight)
+         rule      #DDE0E8   dividers
+       Type:
+         display   DM Serif Display  — section headers, pull quotes
+         body      Inter             — all prose
+         mono      JetBrains Mono    — metrics, code, table data
+    ───────────────────────────────────────────────────────────────── */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:    #0F1117;
+      --slate:  #3A3F4B;
+      --fog:    #F0F1F4;
+      --white:  #FFFFFF;
+      --signal: #1D6FA4;
+      --amber:  #C97B2E;
+      --rule:   #DDE0E8;
+      --radius: 6px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 17px;
+      line-height: 1.7;
+      color: var(--ink);
+      background: var(--fog);
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--white);
+      border-bottom: 1px solid var(--rule);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+    }
+
+    .nav-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--signal);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.6rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--slate);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--signal); }
+
+    /* ── Hero ── */
+    .hero {
+      background: var(--ink);
+      color: var(--white);
+      padding: 5rem 2rem 4.5rem;
+      text-align: center;
+    }
+
+    .hero-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--signal);
+      margin-bottom: 1.4rem;
+    }
+
+    .hero h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2.1rem, 5vw, 3.4rem);
+      line-height: 1.15;
+      max-width: 780px;
+      margin: 0 auto 1.4rem;
+      color: var(--white);
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.65);
+      max-width: 600px;
+      margin: 0 auto 2.8rem;
+      line-height: 1.65;
+    }
+
+    /* ── Signature element: the three-stat bar ── */
+    .stat-bar {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      overflow: hidden;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .stat-cell {
+      flex: 1;
+      min-width: 160px;
+      padding: 1.4rem 1.6rem;
+      border-right: 1px solid rgba(255,255,255,0.1);
+      text-align: left;
+    }
+
+    .stat-cell:last-child { border-right: none; }
+
+    .stat-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.2rem;
+      color: var(--white);
+      line-height: 1;
+    }
+
+    .stat-value span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      color: var(--signal);
+      margin-left: 3px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.5);
+      margin-top: 0.35rem;
+      letter-spacing: 0.02em;
+    }
+
+    .hero-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      color: rgba(255,255,255,0.55);
+      max-width: 640px;
+      margin: 0 auto 2.4rem;
+      line-height: 1.9;
+    }
+
+    .hero-meta strong {
+      color: rgba(255,255,255,0.85);
+      font-weight: 500;
+    }
+
+    /* ── Layout ── */
+    .page-body {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 1.5rem 6rem;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-top: 4.5rem;
+    }
+
+    .section-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.7rem;
+    }
+
+    .section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.85rem;
+      line-height: 1.2;
+      color: var(--ink);
+      margin-bottom: 1.3rem;
+      padding-bottom: 0.9rem;
+      border-bottom: 2px solid var(--rule);
+    }
+
+    .section p {
+      color: var(--slate);
+      margin-bottom: 1rem;
+    }
+
+    .section p:last-child { margin-bottom: 0; }
+
+    /* ── Abstract card ── */
+    .abstract-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-left: 4px solid var(--signal);
+      border-radius: var(--radius);
+      padding: 1.6rem 1.8rem;
+      margin-top: 1.6rem;
+    }
+
+    .abstract-card p {
+      margin-bottom: 0.75rem;
+      font-size: 0.97rem;
+    }
+
+    /* ── Metric table ── */
+    .metric-table-wrap {
+      overflow-x: auto;
+      margin-top: 1.6rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--rule);
+      background: var(--white);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+    }
+
+    thead tr {
+      background: var(--ink);
+      color: var(--white);
+    }
+
+    thead th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+    }
+
+    tbody tr:nth-child(even) { background: var(--fog); }
+
+    tbody td {
+      padding: 0.7rem 1rem;
+      color: var(--slate);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    .better {
+      color: var(--signal);
+      font-weight: 600;
+    }
+
+    .col-method { color: var(--ink); font-weight: 500; }
+
+    /* ── Coefficient chart ── */
+    .coef-chart {
+      margin-top: 1.6rem;
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 1.4rem 1.6rem;
+    }
+
+    .coef-row {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-bottom: 0.7rem;
+    }
+
+    .coef-row:last-child { margin-bottom: 0; }
+
+    .coef-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--slate);
+      width: 200px;
+      flex-shrink: 0;
+    }
+
+    .coef-bar-wrap {
+      flex: 1;
+      height: 10px;
+      background: var(--fog);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .coef-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--signal);
+    }
+
+    .coef-bar.negative { background: var(--amber); }
+
+    .coef-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--ink);
+      width: 56px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Archetype cards ── */
+    .archetype-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1.6rem;
+    }
+
+    .archetype-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .archetype-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .archetype-card.a1::before { background: var(--signal); }
+    .archetype-card.a2::before { background: var(--amber); }
+    .archetype-card.a3::before { background: #5AAF7A; }
+    .archetype-card.a4::before { background: #9B8FBB; }
+    .archetype-card.a5::before { background: var(--rule); }
+
+    .archetype-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .archetype-count {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.7rem;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .archetype-obs {
+      font-size: 0.74rem;
+      color: var(--slate);
+      margin-top: 0.2rem;
+    }
+
+    .archetype-action {
+      margin-top: 0.8rem;
+      font-size: 0.76rem;
+      color: var(--signal);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Decay table ── */
+    .decay-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 1.6rem;
+    }
+
+    .decay-card {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      text-align: center;
+    }
+
+    .decay-band {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.5rem;
+    }
+
+    .decay-rate {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem;
+      color: var(--ink);
+    }
+
+    .decay-n {
+      font-size: 0.74rem;
+      color: var(--slate);
+      margin-top: 0.25rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Limitation list ── */
+    .limit-list {
+      margin-top: 1.3rem;
+      list-style: none;
+    }
+
+    .limit-list li {
+      display: flex;
+      gap: 0.9rem;
+      align-items: flex-start;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 0.95rem;
+      color: var(--slate);
+    }
+
+    .limit-list li:last-child { border-bottom: none; }
+
+    .limit-icon {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      background: #FFF3E0;
+      border: 1px solid var(--amber);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      color: var(--amber);
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    /* ── Pull quote ── */
+    .pull-quote {
+      border-left: 3px solid var(--signal);
+      margin: 1.8rem 0;
+      padding: 0.9rem 1.4rem;
+      background: var(--white);
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .pull-quote p {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.1rem;
+      color: var(--ink);
+      font-style: italic;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* ── Reproducibility block ── */
+    .repro-block {
+      background: var(--ink);
+      border-radius: var(--radius);
+      padding: 1.4rem 1.6rem;
+      margin-top: 1.6rem;
+    }
+
+    .repro-block p {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 0.5rem;
+    }
+
+    .repro-block p:last-child { margin-bottom: 0; }
+
+    .repro-block a {
+      color: var(--signal);
+      text-decoration: none;
+    }
+
+    .repro-block a:hover { text-decoration: underline; }
+
+    /* ── Monitoring snapshot ── */
+    .monitor-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.65rem 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 0.9rem;
+    }
+
+    .monitor-row:last-child { border-bottom: none; }
+
+    .monitor-key {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--slate);
+    }
+
+    .monitor-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .monitor-wrap {
+      background: var(--white);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      padding: 0.6rem 1.2rem;
+      margin-top: 1.4rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--ink);
+      color: rgba(255,255,255,0.45);
+      text-align: center;
+      padding: 2.5rem 1.5rem;
+      font-size: 0.8rem;
+      line-height: 1.8;
+    }
+
+    footer a { color: rgba(255,255,255,0.65); }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+      .nav-links a { font-size: 0.75rem; }
+      .stat-cell { min-width: 120px; padding: 1rem 1rem; }
+      .stat-value { font-size: 1.7rem; }
+      .decay-grid { grid-template-columns: 1fr; }
+      .coef-label { width: 140px; }
+      .hero { padding: 3.5rem 1.2rem 3rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+
+    /* ── Focus ── */
+    a:focus-visible {
+      outline: 2px solid var(--signal);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <a class="nav-brand" href="#">FlyRank · ML Internship</a>
+  <ul class="nav-links">
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#question">Question</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#methodology">Method</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#recommendations">Recommendations</a></li>
+    <li><a href="#limitations">Limitations</a></li>
+    <li><a href="#reproducibility">Reproducibility</a></li>
+  </ul>
+</nav>
+
+<!-- ── Hero ── -->
+<header class="hero">
+  <p class="hero-eyebrow">Refresh / Content Opportunity Scoring · March–April 2026</p>
+  <h1>Can March search signals predict next-month click decline?</h1>
+  <p class="hero-sub">
+    A reproducible decision-support workflow for prioritizing content observations for human review — built on real search and engagement data with honest validation.
+  </p>
+  <p class="hero-meta">
+    <strong>Author:</strong> Anas Uddin &nbsp;·&nbsp;
+    <strong>Track:</strong> Machine Learning &nbsp;·&nbsp;
+    <strong>Project:</strong> Google Search Ranking &amp; Discoverability Capstone &nbsp;·&nbsp;
+    <strong>Lane:</strong> Refresh / Content Opportunity Scoring
+  </p>
+
+  <div class="stat-bar">
+    <div class="stat-cell">
+      <div class="stat-value">68,837<span>rows</span></div>
+      <div class="stat-label">Modeling observations</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-value">0.61<span>AUC</span></div>
+      <div class="stat-label">ROC-AUC vs 0.50 baseline</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-value">5,062<span>obs</span></div>
+      <div class="stat-label">Client-grouped test set</div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Page body ── -->
+<main class="page-body">
+
+  <!-- Abstract -->
+  <section class="section" id="abstract">
+    <p class="section-eyebrow">Abstract</p>
+    <h2>Content Opportunity Scoring for Refresh Prioritization</h2>
+    <div class="abstract-card">
+      <p>This paper asks whether observable March 2026 search and engagement signals can help prioritize content observations for human review ahead of a measured April click decline. A Logistic Regression model was trained on ten March-only features and validated with a client-grouped train/test split to avoid client-level leakage. On the held-out test set of 5,062 observations, the model reached a ROC-AUC of 0.6132 and an average precision of 0.7813, against a majority-class baseline of 0.5000 and 0.6831 respectively on the same split. The strongest feature association was March CTR, followed by session volume and scroll activity, all interpreted as directional associations rather than causal effects. The resulting output is an evidence-aware ranked review queue — not an automatic content-change trigger — and it explicitly down-weights low-impression observations that would otherwise receive inflated probabilities. The work is offered as decision-support for a human reviewer, not as proof that any specific page requires a refresh.</p>
+    </div>
+  </section>
+
+  <!-- Introduction -->
+  <section class="section" id="introduction">
+    <p class="section-eyebrow">Introduction</p>
+    <h2>Problem Statement</h2>
+    <p>Content teams manage far more pages than they can manually review every month. Search Console and analytics data already contain early signals — impressions, clicks, CTR, session engagement — that may be associated with a page's near-term trajectory, but without a systematic way to score and rank observations, review effort tends to default to recency or gut feel rather than evidence.</p>
+    <p>This project explores the <strong>Refresh / Content Opportunity Scoring</strong> lane of the FlyRank Google Search Ranking &amp; Discoverability capstone: using one month of observed search and engagement behavior (March 2026) to rank content observations for human review, evaluated against a retrospective next-month click-decline outcome (April 2026). The intent throughout is decision-support, not automated content management — every output in this paper is designed to be read, questioned, and acted on by a human reviewer, not executed automatically.</p>
+  </section>
+
+  <!-- 1. Question -->
+  <section class="section" id="question">
+    <p class="section-eyebrow">Section 01</p>
+    <h2>Question &amp; Decision</h2>
+
+    <div class="abstract-card">
+      <p><strong>Research question.</strong> Can observable March 2026 search and engagement signals help prioritize content observations for human review when the next-month outcome is a measured decline in clicks?</p>
+      <p><strong>Decision supported.</strong> The output is a ranked review queue. A content or SEO reviewer uses it to decide which observations deserve investigation first and which should remain in monitoring.</p>
+      <p><strong>Unit of analysis.</strong> One client-content observation, aggregated across March 2026. The model target is the observed April click-decline outcome for observations that had March click demand.</p>
+      <p><strong>Framing.</strong> This is prioritization, not automatic publishing or content modification. All recommended actions require human review.</p>
+    </div>
+  </section>
+
+  <!-- 2. Data -->
+  <section class="section" id="data">
+    <p class="section-eyebrow">Section 02</p>
+    <h2>Data</h2>
+
+    <p>The analysis uses the FlyRank internship warehouse release. Two monthly partitions are loaded — no other data is used.</p>
+
+    <p><strong>Feature window:</strong> March 2026 (9,841,378 daily rows → 331,437 aggregated client-content observations).<br>
+    <strong>Outcome window:</strong> April 2026 (10,424,730 daily rows → 362,172 aggregated observations).<br>
+    <strong>Modeling dataset:</strong> 68,837 observations after inner join and target requirement.</p>
+
+    <p><strong>March features aggregated per client-content pair:</strong> Google Search Console impressions, clicks, average position; GA4 sessions, engaged sessions, organic sessions, AI-referral sessions, scroll events; derived CTR and engagement rate.</p>
+
+    <p><strong>Exclusions.</strong> Client and content identifiers are not predictive features. The client identifier is used only as a grouping boundary for honest validation. April outcome fields are not used as model features. No client names, domains, private queries, or credentials are published.</p>
+
+    <div class="pull-quote">
+      <p>"Identifiers remain pseudonymous and are used only to establish the grouping boundary required for honest validation."</p>
+    </div>
+  </section>
+
+  <!-- 3. Methodology -->
+  <section class="section" id="methodology">
+    <p class="section-eyebrow">Section 03</p>
+    <h2>Methodology</h2>
+
+    <p><strong>Target definition.</strong> An observation is labeled <code>future_decline = 1</code> when its April clicks are lower than its March clicks, provided March clicks are greater than zero. Observations with no March click demand are excluded because the decline outcome requires measurable prior demand. Observed decline rate: <strong>65.52%</strong>.</p>
+
+    <p><strong>Model.</strong> Logistic Regression pipeline: median imputation → standard scaling → Logistic Regression (max_iter=1000, random_state=42). Logistic Regression was chosen for transparency: it produces probabilities, coefficients can be inspected and explained, and it does not reward complexity alone.</p>
+
+    <p><strong>Validation design.</strong> <code>GroupShuffleSplit</code> with 20% test size and client-level grouping (random_state=42). Observations from the same client are kept entirely on one side of the split. This prevents the model from learning client-specific patterns in training and then appearing better on those same clients at test time.</p>
+
+    <div class="metric-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Split</th>
+            <th>Rows</th>
+            <th>Clients</th>
+            <th>Decline rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="col-method">Train</td>
+            <td>63,775</td>
+            <td>35</td>
+            <td>0.6530</td>
+          </tr>
+          <tr>
+            <td class="col-method">Test</td>
+            <td>5,062</td>
+            <td>9</td>
+            <td>0.6831</td>
+          </tr>
+          <tr>
+            <td class="col-method">Client overlap</td>
+            <td colspan="3"><strong>0</strong> — fully separated</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.2rem;"><strong>Baseline.</strong> The baseline always predicts the training-set majority-class probability (0.6530) for every observation. This is deliberately naive and evaluated on the exact same grouped test split as the model.</p>
+
+    <p><strong>Leakage controls.</strong> April outcome fields are not model features. <code>future_decline</code> is not a model feature. Client and content IDs are not predictive features. All features are March-only. Test clients have zero overlap with training clients.</p>
+  </section>
+
+  <!-- 4. Results -->
+  <section class="section" id="results">
+    <p class="section-eyebrow">Section 04</p>
+    <h2>Results vs Baseline</h2>
+
+    <p>Both methods are evaluated on the same client-grouped test split of 5,062 observations. Because the test-set class balance is already high (68.3% positive), accuracy alone is not a strong discrimination measure. ROC-AUC and average precision provide more useful comparisons.</p>
+
+    <div class="metric-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>ROC-AUC</th>
+            <th>Avg Precision</th>
+            <th>Brier Score</th>
+            <th>Accuracy @0.50</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="col-method">Majority probability baseline</td>
+            <td>0.5000</td>
+            <td>0.6831</td>
+            <td>0.2174</td>
+            <td>0.6831</td>
+          </tr>
+          <tr>
+            <td class="col-method">Week-5 Logistic Regression</td>
+            <td class="better">0.6132</td>
+            <td class="better">0.7813</td>
+            <td class="better">0.2110</td>
+            <td>0.6839</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.2rem;">The model shows measured improvement in ROC-AUC (+0.11) and average precision (+0.10) over the naive baseline on this validation setup. The Brier score is marginally better, indicating slightly better-calibrated probabilities. These results do not establish causality or future refresh impact.</p>
+
+    <p><strong>Feature associations (standardized coefficients).</strong> These are directional associations only, not causal effects.</p>
+
+    <div class="coef-chart">
+      <!-- Positive coefficients -->
+      <div class="coef-row">
+        <div class="coef-label">march_ctr</div>
+        <div class="coef-bar-wrap"><div class="coef-bar" style="width:100%"></div></div>
+        <div class="coef-val">+0.757</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_scroll_events</div>
+        <div class="coef-bar-wrap"><div class="coef-bar" style="width:12.4%"></div></div>
+        <div class="coef-val">+0.094</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_impressions</div>
+        <div class="coef-bar-wrap"><div class="coef-bar" style="width:7.7%"></div></div>
+        <div class="coef-val">+0.058</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_engaged_sessions</div>
+        <div class="coef-bar-wrap"><div class="coef-bar" style="width:7.3%"></div></div>
+        <div class="coef-val">+0.055</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_avg_position</div>
+        <div class="coef-bar-wrap"><div class="coef-bar" style="width:1.2%"></div></div>
+        <div class="coef-val">+0.009</div>
+      </div>
+      <!-- Negative coefficients -->
+      <div class="coef-row">
+        <div class="coef-label">march_sessions</div>
+        <div class="coef-bar-wrap"><div class="coef-bar negative" style="width:16.4%"></div></div>
+        <div class="coef-val">−0.124</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_organic_sessions</div>
+        <div class="coef-bar-wrap"><div class="coef-bar negative" style="width:8.0%"></div></div>
+        <div class="coef-val">−0.060</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_engagement_rate</div>
+        <div class="coef-bar-wrap"><div class="coef-bar negative" style="width:5.6%"></div></div>
+        <div class="coef-val">−0.043</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_ai_sessions</div>
+        <div class="coef-bar-wrap"><div class="coef-bar negative" style="width:3.0%"></div></div>
+        <div class="coef-val">−0.022</div>
+      </div>
+      <div class="coef-row">
+        <div class="coef-label">march_clicks</div>
+        <div class="coef-bar-wrap"><div class="coef-bar negative" style="width:2.3%"></div></div>
+        <div class="coef-val">−0.018</div>
+      </div>
+    </div>
+
+    <p style="margin-top:1rem; font-size:0.85rem; color:var(--slate);">
+      Blue bars = positively associated with observed decline. Amber bars = negatively associated. Bar length is proportional to the absolute standardized coefficient. These are model associations, not causal effects.
+    </p>
+
+    <!-- Retrospective decay -->
+    <p style="margin-top:1.6rem;"><strong>Retrospective visibility/decline pattern.</strong> Observed April click-decline rate by March impression band. This is a descriptive directional pattern — it does not show that visibility causes decline.</p>
+
+    <div class="decay-grid">
+      <div class="decay-card">
+        <div class="decay-band">Low visibility<br>0–99 impressions</div>
+        <div class="decay-rate">83.2%</div>
+        <div class="decay-n">n = 5,175</div>
+      </div>
+      <div class="decay-card">
+        <div class="decay-band">Medium visibility<br>100–499 impressions</div>
+        <div class="decay-rate">69.0%</div>
+        <div class="decay-n">n = 12,534</div>
+      </div>
+      <div class="decay-card">
+        <div class="decay-band">High visibility<br>≥500 impressions</div>
+        <div class="decay-rate">62.9%</div>
+        <div class="decay-n">n = 51,128</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Recommendations -->
+  <section class="section" id="recommendations">
+    <p class="section-eyebrow">Section 05</p>
+    <h2>Ranked Recommendations</h2>
+
+    <p>A model probability by itself is not treated as an action priority. An important lesson from this project: observations with only one impression and one click can receive probabilities near 1.0 and appear at the top of a naive queue. That is not enough evidence to justify immediate content work.</p>
+
+    <p>This capstone adds an evidence-aware prioritization layer. The <strong>priority score</strong> = model probability × evidence factor × 100, where the evidence factor is log-scaled from March impressions (clipped 0–1). Low-evidence observations remain monitoring candidates regardless of model probability.</p>
+
+    <div class="archetype-grid">
+      <div class="archetype-card a1">
+        <div class="archetype-title">High Visibility · Low CTR</div>
+        <div class="archetype-count">1,473</div>
+        <div class="archetype-obs">observations in test queue</div>
+        <div class="archetype-action">→ review_title_snippet_intent</div>
+      </div>
+      <div class="archetype-card a2">
+        <div class="archetype-title">High Traffic · Low Engagement</div>
+        <div class="archetype-count">142</div>
+        <div class="archetype-obs">observations in test queue</div>
+        <div class="archetype-action">→ review_content_experience</div>
+      </div>
+      <div class="archetype-card a3">
+        <div class="archetype-title">Demand With Clicks</div>
+        <div class="archetype-count">2,561</div>
+        <div class="archetype-obs">observations in test queue</div>
+        <div class="archetype-action">→ review_refresh_opportunity</div>
+      </div>
+      <div class="archetype-card a4">
+        <div class="archetype-title">Visible · No Strong Issue</div>
+        <div class="archetype-count">—</div>
+        <div class="archetype-obs">flagged for human review</div>
+        <div class="archetype-action">→ human_review</div>
+      </div>
+      <div class="archetype-card a5">
+        <div class="archetype-title">Low Evidence</div>
+        <div class="archetype-count">886</div>
+        <div class="archetype-obs">monitoring, not escalated</div>
+        <div class="archetype-action">→ monitor</div>
+      </div>
+    </div>
+
+    <p style="margin-top:1.4rem;"><strong>Queue monitoring snapshot.</strong></p>
+
+    <div class="monitor-wrap">
+      <div class="monitor-row">
+        <span class="monitor-key">queue_rows</span>
+        <span class="monitor-val">5,062</span>
+      </div>
+      <div class="monitor-row">
+        <span class="monitor-key">mean_model_probability</span>
+        <span class="monitor-val">0.6687</span>
+      </div>
+      <div class="monitor-row">
+        <span class="monitor-key">high_priority_share (prob ≥ 0.70)</span>
+        <span class="monitor-val">12.03%</span>
+      </div>
+      <div class="monitor-row">
+        <span class="monitor-key">low_evidence_share</span>
+        <span class="monitor-val">17.50%</span>
+      </div>
+      <div class="monitor-row">
+        <span class="monitor-key">human_review_required</span>
+        <span class="monitor-val">True</span>
+      </div>
+      <div class="monitor-row">
+        <span class="monitor-key">automatic_actions_allowed</span>
+        <span class="monitor-val">False</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Limitations -->
+  <section class="section" id="limitations">
+    <p class="section-eyebrow">Section 06</p>
+    <h2>Limitations &amp; Honest Framing</h2>
+
+    <p>The following claims cannot be made from this work:</p>
+
+    <ul class="limit-list">
+      <li><div class="limit-icon">!</div>A content refresh <em>caused</em> a performance change. The April label is a retrospective measurement, not a refresh outcome.</li>
+      <li><div class="limit-icon">!</div>A refresh <em>will reverse</em> an observed decline. No intervention data is available.</li>
+      <li><div class="limit-icon">!</div>The model predicts Google's ranking algorithm. It measures observable signal associations, nothing more.</li>
+      <li><div class="limit-icon">!</div>A high model probability <em>proves</em> a page has a content problem. Probability reflects the model's learned pattern, not editorial quality.</li>
+      <li><div class="limit-icon">!</div>The model captures search intent, technical SEO, business value, editorial quality, or every reason a page changes over time.</li>
+      <li><div class="limit-icon">!</div>Sparse observations provide strong evidence for any action. Low-evidence rows are kept in monitoring.</li>
+      <li><div class="limit-icon">!</div>Results will generalize automatically to other time periods or client segments. This covers one March-to-April window with one validation setup. Additional time-based or repeated validation would be needed.</li>
+    </ul>
+
+    <div class="pull-quote">
+      <p>"On the evaluated March-to-April dataset and client-grouped test split, the Logistic Regression model produced measured classification performance for the defined future-decline outcome. These results provide directional evidence that March performance signals can support a content-opportunity scoring workflow. The model should be treated as decision-support rather than proof that a page should be refreshed or that a refresh will improve performance."</p>
+    </div>
+  </section>
+
+  <!-- 7. Reproducibility -->
+  <section class="section" id="reproducibility">
+    <p class="section-eyebrow">Section 07</p>
+    <h2>Reproducibility</h2>
+
+    <p>All results are produced by running the capstone notebook top-to-bottom. No numbers in this paper were manually typed — all are drawn from fresh notebook runs.</p>
+
+    <div class="repro-block">
+      <p>Dataset: <a href="https://huggingface.co/datasets/FlyRank/internship-warehouse" target="_blank" rel="noopener">FlyRank/internship-warehouse</a> (gated)</p>
+      <p>Notebook: work/notebooks/capstone.ipynb</p>
+      <p>March partition: fact_content_daily_performance/month=2026-03/data_0.parquet</p>
+      <p>April partition: fact_content_daily_performance/month=2026-04/data_0.parquet</p>
+      <p>Outputs: work/outputs/capstone_model_vs_baseline.csv · w08_content_action_queue.csv · w08_archetype_action_summary.csv · w08_monitoring_snapshot.csv · w08_decay_refresh_summary.csv</p>
+      <p>Validation: GroupShuffleSplit · test_size=0.20 · random_state=42 · groups=client_hash_id</p>
+      <p>Model: sklearn Pipeline — SimpleImputer(median) → StandardScaler → LogisticRegression(max_iter=1000, random_state=42)</p>
+    </div>
+
+    <p style="margin-top:1.4rem; font-size:0.9rem; color:var(--slate);">
+      No client names, domains, private queries, raw exports, or credentials are published. All identifiers are pseudonymous hashes.
+    </p>
+  </section>
+
+  <!-- 8. Acknowledgments -->
+  <section class="section" id="acknowledgments">
+    <p class="section-eyebrow">Section 08</p>
+    <h2>Acknowledgments</h2>
+    <p>Built on the FlyRank ML Internship dataset. Data access and internship structure provided by <a href="https://flyrank.ai" target="_blank" rel="noopener" style="color:var(--signal);">FlyRank</a>.</p>
+    <p>All modeling, validation, analysis, and paper content produced as part of the FlyRank AI Machine Learning Internship capstone — Refresh / Content Opportunity Scoring lane.</p>
+  </section>
+
+</main>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>FlyRank ML Internship · Refresh / Content Opportunity Scoring · March–April 2026</p>
+  <p>Built on the <a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank</a> internship dataset · Decision-support only · All results directional</p>
+  <p style="margin-top:0.8rem; font-size:0.72rem;">No client names · No private queries · No credentials · No causal claims</p>
+</footer>
+
+</body>
+</html>
